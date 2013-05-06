@@ -26,6 +26,31 @@ from google.appengine.ext.appstats.recording import recorder_proxy
 from appstats_logger.recorder import Recorder
 
 
+class StatsDjangoMiddleware(object):
+    """Django Middleware to install the instrumentation.
+
+    To start recording your app's RPC statistics, add
+
+        'appstats_logger.recording.StatsDjangoMiddleware',
+
+    to the MIDDLEWARE_CLASSES entry in your Django settings.py file.
+    It's best to insert it in front of any other middleware classes,
+    since some other middleware may make RPC calls and those won't be
+    recorded if that middleware is invoked before this middleware.
+
+    See http://docs.djangoproject.com/en/dev/topics/http/middleware/.
+    """
+
+    def process_request(self, request):
+        """Called by Django before deciding which view to execute."""
+        _start_recording()
+
+    def process_response(self, request, response):
+        """Called by Django just before returning a response."""
+        _stop_recording()
+        return response
+
+
 def stats_logger_wsgi_middleware(app):
 
     def appstats_wsgi_wrapper(environ, start_response):
