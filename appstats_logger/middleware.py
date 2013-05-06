@@ -31,7 +31,7 @@ class StatsDjangoMiddleware(object):
 
     To start recording your app's RPC statistics, add
 
-        'appstats_logger.recording.StatsDjangoMiddleware',
+        'appstats_logger.middleware.StatsDjangoMiddleware',
 
     to the MIDDLEWARE_CLASSES entry in your Django settings.py file.
     It's best to insert it in front of any other middleware classes,
