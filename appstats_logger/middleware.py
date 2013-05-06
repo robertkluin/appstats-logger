@@ -41,34 +41,37 @@ def stats_logger_wsgi_middleware(app):
 
         The signature is determined by the WSGI protocol.
         """
-        # start: start_recording
-        recorder_proxy.clear_for_current_request()
-        env = environ
-        if env is None:
-            env = os.environ
-
-        recorder_proxy.set_for_current_request(Recorder(env))
-        # end: start_recording
+        _start_recording(environ)
 
         try:
             result = app(environ, start_response)
         except Exception:
-            _emit_profile_data()
+            _stop_recording()
             raise
 
         if result is not None:
             for value in result:
                 yield value
 
-        _emit_profile_data()
+        _stop_recording()
 
     return appstats_wsgi_wrapper
 
 
-def _emit_profile_data():
+def _start_recording(env=None):
+    """Reset the recorder registry (proxy), and setup a new recorder."""
+    recorder_proxy.clear_for_current_request()
+    if env is None:
+        env = os.environ
+
+    recorder_proxy.set_for_current_request(Recorder(env))
+
+
+def _stop_recording():
     """Get the current recorder and log the profiling data."""
     rec = recorder_proxy.get_for_current_request()
-    logging.info("PROFILE: %s", json.dumps(rec.get_profile_data()))
+    if rec is not None:
+        logging.info("PROFILE: %s", json.dumps(rec.get_profile_data()))
 
     recorder_proxy.clear_for_current_request()
 
