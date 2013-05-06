@@ -1,0 +1,11 @@
+application: appstats-logger
+version: test
+runtime: python27
+api_version: 1
+threadsafe: true
+
+handlers:
+- url: .*
+  script: test.app
+  login: admin
+
