@@ -17,6 +17,8 @@
 and then getting and dumping the profile data from it at the end of the
 request.
 """
+import base64
+import bz2
 import json
 import logging
 import os
@@ -96,7 +98,20 @@ def _stop_recording():
     """Get the current recorder and log the profiling data."""
     rec = recorder_proxy.get_for_current_request()
     if rec is not None:
-        logging.info("PROFILE: %s", json.dumps(rec.get_profile_data()))
+        profile_data = rec.get_profile_data()
+        profile_calls = _split_profile(profile_data['calls'], 1400)
+
+        profile_data['calls'] = profile_calls.pop(0)['calls']
+
+        logging.info("PROFILE: %s",
+                     base64.b64encode(bz2.compress(json.dumps(profile_data))))
+
+        for more_calls in profile_calls:
+            logging.info("PROFILE: %s",
+                         base64.b64encode(bz2.compress(json.dumps(more_calls))))
 
     recorder_proxy.clear_for_current_request()
 
+
+def _split_profile(profile, size):
+    return [{'calls':profile[x:x+size]} for x in xrange(0, len(profile), size)]
