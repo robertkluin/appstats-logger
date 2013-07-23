@@ -103,28 +103,22 @@ def _stop_recording():
     if rec is not None:
         # update _local_cache if this is the first time or it's been 10 min
         if _local_cache.get('last_check', 0) + 600 < int(time.time()):
-            use_plaintext = memcache.get('appstats-logger_use-plaintext')
+            _local_cache['use_plaintext'] = bool(memcache.get('profile-plaintext'))
             _local_cache['last_check'] = int(time.time())
-            if use_plaintext:
-                _local_cache['use_plaintext'] = True
-            else:
-                _local_cache['use_plaintext'] = False
 
         profile_data = rec.get_profile_data()
 
-        if _local_cache['use_plaintext']:
-            profile_calls = _split_profile(profile_data['calls'], 100)
-        else:
-            profile_calls = _split_profile(profile_data['calls'], 800)
+        calls = _split_profile(profile_data['calls'],
+                               100 if _local_cache['use_plaintext'] else 800)
 
-        profile_data['calls'] = profile_calls.pop(0)['calls']
+        profile_data['calls'] = calls.pop(0)['calls'] if calls else []
 
         logging.info("PROFILE: %s",
                      profile_data
                      if _local_cache['use_plaintext'] else
                      base64.b64encode(zlib.compress(json.dumps(profile_data))))
 
-        for more_calls in profile_calls:
+        for more_calls in calls:
             logging.info("PROFILE: %s",
                          profile_data
                          if _local_cache['use_plaintext'] else
