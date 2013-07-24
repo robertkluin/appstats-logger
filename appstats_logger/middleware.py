@@ -17,14 +17,19 @@
 and then getting and dumping the profile data from it at the end of the
 request.
 """
+import base64
+import zlib
 import json
 import logging
 import os
+import time
 
+from google.appengine.api import memcache
 from google.appengine.ext.appstats.recording import recorder_proxy
 
 from appstats_logger.recorder import Recorder
 
+_local_cache = dict()
 
 class StatsDjangoMiddleware(object):
     """Django Middleware to install the instrumentation.
@@ -96,7 +101,32 @@ def _stop_recording():
     """Get the current recorder and log the profiling data."""
     rec = recorder_proxy.get_for_current_request()
     if rec is not None:
-        logging.info("PROFILE: %s", json.dumps(rec.get_profile_data()))
+        # update _local_cache if this is the first time or it's been 10 min
+        if _local_cache.get('last_check', 0) + 600 < int(time.time()):
+            _local_cache['use_plaintext'] = bool(memcache.get('profile-plaintext'))
+            _local_cache['last_check'] = int(time.time())
+
+        profile_data = rec.get_profile_data()
+
+        calls = _split_profile(profile_data['calls'],
+                               100 if _local_cache['use_plaintext'] else 800)
+
+        profile_data['calls'] = calls.pop(0)['calls'] if calls else []
+
+        logging.info("PROFILE: %s",
+                     profile_data
+                     if _local_cache['use_plaintext'] else
+                     base64.b64encode(zlib.compress(json.dumps(profile_data))))
+
+        for more_calls in calls:
+            logging.info("PROFILE: %s",
+                         profile_data
+                         if _local_cache['use_plaintext'] else
+                         base64.b64encode(
+                             zlib.compress(json.dumps(more_calls))))
 
     recorder_proxy.clear_for_current_request()
 
+
+def _split_profile(profile, size):
+    return [{'calls':profile[x:x+size]} for x in xrange(0, len(profile), size)]
